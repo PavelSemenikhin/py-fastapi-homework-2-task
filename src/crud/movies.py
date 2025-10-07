@@ -135,8 +135,8 @@ async def update_movie(db: AsyncSession, movie_id: int, movie: MovieUpdateSchema
         raise HTTPException(
             status_code=404, detail="Movie with the given ID was not found."
         )
-    else:
-        update = movie.model_dump(exclude_unset=True)
+
+    update = movie.model_dump(exclude_unset=True)
 
     if "name" in update or "date" in update:
         new_name = update.get("name", existing_movie.name)
@@ -147,6 +147,7 @@ async def update_movie(db: AsyncSession, movie_id: int, movie: MovieUpdateSchema
             MovieModel.date == new_date,
             MovieModel.id != movie_id,
         )
+
         check_result = await db.execute(stmt_check)
         duplicate = check_result.scalar_one_or_none()
 
@@ -164,7 +165,8 @@ async def update_movie(db: AsyncSession, movie_id: int, movie: MovieUpdateSchema
         if "revenue" in update and update["revenue"] < 0:
             raise ValueError
         if "status" in update:
-            MovieStatusEnum(update["status"])  # перевірка валідності enum
+            if not isinstance(update["status"], MovieStatusEnum):
+                update["status"] = MovieStatusEnum(update["status"])
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid input data.")
 
@@ -175,3 +177,4 @@ async def update_movie(db: AsyncSession, movie_id: int, movie: MovieUpdateSchema
     await db.refresh(existing_movie)
 
     return {"detail": "Movie updated successfully."}
+
