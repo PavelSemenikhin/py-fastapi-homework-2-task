@@ -177,4 +177,3 @@ async def update_movie(db: AsyncSession, movie_id: int, movie: MovieUpdateSchema
     await db.refresh(existing_movie)
 
     return {"detail": "Movie updated successfully."}
-
