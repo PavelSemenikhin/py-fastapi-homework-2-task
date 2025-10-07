@@ -56,10 +56,7 @@ async def get_list_movies(db: AsyncSession, page: int, per_page: int):
     movies = res.scalars().all()
 
     if not movies:
-        raise HTTPException(
-            status_code=404,
-            detail="No movies found."
-        )
+        raise HTTPException(status_code=404, detail="No movies found.")
 
     count_result = await db.execute(select(func.count()).select_from(MovieModel))
     total_items = count_result.scalar_one()
@@ -148,7 +145,7 @@ async def update_movie(db: AsyncSession, movie_id: int, movie: MovieUpdateSchema
         stmt_check = select(MovieModel).filter(
             MovieModel.name == new_name,
             MovieModel.date == new_date,
-            MovieModel.id != movie_id
+            MovieModel.id != movie_id,
         )
         check_result = await db.execute(stmt_check)
         duplicate = check_result.scalar_one_or_none()
@@ -156,7 +153,7 @@ async def update_movie(db: AsyncSession, movie_id: int, movie: MovieUpdateSchema
         if duplicate:
             raise HTTPException(
                 status_code=409,
-                detail=f"A movie with the name '{new_name}' and release date '{new_date}' already exists."
+                detail=f"A movie with the name '{new_name}' and release date '{new_date}' already exists.",
             )
 
     try:

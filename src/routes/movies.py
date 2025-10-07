@@ -13,7 +13,12 @@ from crud.movies import (
     update_movie,
 )
 from database import get_db
-from schemas.movies import PaginatedMoviesResponse, MovieCreateSchema, MovieUpdateSchema, MovieDetailSchema
+from schemas.movies import (
+    PaginatedMoviesResponse,
+    MovieCreateSchema,
+    MovieUpdateSchema,
+    MovieDetailSchema,
+)
 
 router = APIRouter()
 
@@ -43,7 +48,11 @@ async def list_movies(
     base_path = "/theater/movies/"
 
     prev_page = f"{base_path}?page={page - 1}&per_page={per_page}" if page > 1 else None
-    next_page = f"{base_path}?page={page + 1}&per_page={per_page}" if page < total_pages else None
+    next_page = (
+        f"{base_path}?page={page + 1}&per_page={per_page}"
+        if page < total_pages
+        else None
+    )
 
     return PaginatedMoviesResponse(
         movies=movies,
@@ -68,6 +77,7 @@ async def delete_movie_by_id(
 ):
     await delete_movie(db, movie_id)  # Noqa
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
 
 @router.patch("/movies/{movie_id}/", status_code=status.HTTP_200_OK)
 async def update_movie_by_id(
