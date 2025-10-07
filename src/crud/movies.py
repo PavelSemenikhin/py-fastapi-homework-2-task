@@ -1,20 +1,17 @@
-from decimal import Decimal
-
-from fastapi import Query, HTTPException
+from fastapi import HTTPException
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from database import MovieModel
 from database.models import (
     CountryModel,
     GenreModel,
     ActorModel,
     LanguageModel,
+    MovieModel,
     MovieStatusEnum,
 )
-from schemas import MovieCreateSchema
-from schemas.movies import MovieUpdateSchema
+from schemas.movies import MovieUpdateSchema, MovieCreateSchema
 
 
 async def get_or_create(
@@ -57,6 +54,13 @@ async def get_list_movies(db: AsyncSession, page: int, per_page: int):
         select(MovieModel).order_by(MovieModel.id.desc()).offset(offset).limit(per_page)
     )
     movies = res.scalars().all()
+
+    if not movies:
+        raise HTTPException(
+            status_code=404,
+            detail="No movies found."
+        )
+
     count_result = await db.execute(select(func.count()).select_from(MovieModel))
     total_items = count_result.scalar_one()
     total_pages = (total_items + per_page - 1) // per_page
@@ -86,7 +90,7 @@ async def create_movie(db: AsyncSession, movie: MovieCreateSchema):
         date=movie.date,
         score=movie.score,
         overview=movie.overview,
-        status=MovieStatusEnum(movie.status),
+        status=movie.status,
         budget=movie.budget,
         revenue=movie.revenue,
         country=country,
@@ -129,6 +133,7 @@ async def update_movie(db: AsyncSession, movie_id: int, movie: MovieUpdateSchema
     stmt = select(MovieModel).filter_by(id=movie_id)
     result = await db.execute(stmt)
     existing_movie = result.scalar_one_or_none()
+
     if existing_movie is None:
         raise HTTPException(
             status_code=404, detail="Movie with the given ID was not found."
@@ -136,10 +141,40 @@ async def update_movie(db: AsyncSession, movie_id: int, movie: MovieUpdateSchema
     else:
         update = movie.model_dump(exclude_unset=True)
 
-        for key, value in update.items():
-            setattr(existing_movie, key, value)
+    if "name" in update or "date" in update:
+        new_name = update.get("name", existing_movie.name)
+        new_date = update.get("date", existing_movie.date)
 
-        await db.commit()
-        await db.refresh(existing_movie)
+        stmt_check = select(MovieModel).filter(
+            MovieModel.name == new_name,
+            MovieModel.date == new_date,
+            MovieModel.id != movie_id
+        )
+        check_result = await db.execute(stmt_check)
+        duplicate = check_result.scalar_one_or_none()
 
-        return {"detail": "Movie updated successfully."}
+        if duplicate:
+            raise HTTPException(
+                status_code=409,
+                detail=f"A movie with the name '{new_name}' and release date '{new_date}' already exists."
+            )
+
+    try:
+        if "score" in update and not (0 <= update["score"] <= 100):
+            raise ValueError
+        if "budget" in update and update["budget"] < 0:
+            raise ValueError
+        if "revenue" in update and update["revenue"] < 0:
+            raise ValueError
+        if "status" in update:
+            MovieStatusEnum(update["status"])  # перевірка валідності enum
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid input data.")
+
+    for key, value in update.items():
+        setattr(existing_movie, key, value)
+
+    await db.commit()
+    await db.refresh(existing_movie)
+
+    return {"detail": "Movie updated successfully."}

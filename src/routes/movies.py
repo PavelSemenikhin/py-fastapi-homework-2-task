@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.openapi.models import Response
+from requests import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
@@ -13,8 +13,7 @@ from crud.movies import (
     update_movie,
 )
 from database import get_db
-from schemas import MovieDetailSchema
-from schemas.movies import PaginatedMoviesResponse, MovieCreateSchema, MovieUpdateSchema
+from schemas.movies import PaginatedMoviesResponse, MovieCreateSchema, MovieUpdateSchema, MovieDetailSchema
 
 router = APIRouter()
 
@@ -36,21 +35,15 @@ async def list_movies(
     page: int = Query(1, ge=1),
     per_page: int = Query(10, ge=1, le=20),
 ):
+    if page < 1 or per_page < 1 or per_page > 20:
+        raise HTTPException(status_code=400, detail="Invalid input data.")
+
     movies, total_items, total_pages = await get_list_movies(db, page, per_page)
 
-    if not movies:
-        raise HTTPException(status_code=404, detail="No movies found.")
-
-    base_path = request.url.path
-
-    base_path = base_path.replace("/api/v1", "")
+    base_path = "/theater/movies/"
 
     prev_page = f"{base_path}?page={page - 1}&per_page={per_page}" if page > 1 else None
-    next_page = (
-        f"{base_path}?page={page + 1}&per_page={per_page}"
-        if page < total_pages
-        else None
-    )
+    next_page = f"{base_path}?page={page + 1}&per_page={per_page}" if page < total_pages else None
 
     return PaginatedMoviesResponse(
         movies=movies,
@@ -73,8 +66,8 @@ async def create_new_movie(
 async def delete_movie_by_id(
     movie_id: int, db: Annotated[AsyncSession, Depends(get_db)]
 ):
-    movie_for_delete = await delete_movie(db, movie_id)  # Noqa
-
+    await delete_movie(db, movie_id)  # Noqa
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @router.patch("/movies/{movie_id}/", status_code=status.HTTP_200_OK)
 async def update_movie_by_id(
